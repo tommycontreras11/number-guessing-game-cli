@@ -22,39 +22,14 @@ difficultyLevels.forEach((difficultyLevel) => {
   });
 });
 
-const askDifficultyLevel = async (question) => {
-  return new Promise((resolve) => {
-    process.stdout.write(question);
-
-    process.stdin.once("data", (data) => {
-      const input = data.toString().trim();
-      const value = parseInt(input);
-
-      resolve(difficultyLevels[value - 1]);
-    });
-  });
-};
-
-const askNumber = async (question) => {
-  return new Promise((resolve) => {
-    process.stdout.write(question);
-
-    process.stdin.once("data", (data) => {
-      const input = data.toString().trim();
-      const value = parseInt(input);
-
-      resolve(value);
-    });
-  });
-};
-const askRetry = async (question) => {
+const getInput = async (question) => {
   return new Promise((resolve) => {
     process.stdout.write(question);
 
     process.stdin.once("data", (data) => {
       const input = data.toString().trim();
 
-      resolve(input == "y" || input == "yes");
+      resolve(input);
     });
   });
 };
@@ -120,21 +95,33 @@ Please select the difficulty level:
 
   let iteration = 0,
     attempts = 0,
-    won = false;
+    won = false,
+    continueGame = false,
+    message = "";
 
   let numberGenerated = Math.floor(Math.random() * 100) + 1;
 
-  let difficultyLevel = await askDifficultyLevel("Enter your choice: ");
+  let difficulty;
+
+  while (!difficulty) {
+    let input = parseInt(await getInput("Enter your choice: "));
+
+    if (input >= 1 && input <= difficultyLevels.length) {
+      difficulty = difficultyLevels[input - 1];
+    } else {
+      console.log("\nInvalid choice. Please, select a correct one\n");
+    }
+  }
 
   console.log(
-    `\nGreat! You have selected the ${difficultyLevel.level} difficulty level.`,
+    `\nGreat! You have selected the ${difficulty.level} difficulty level.`,
   );
   console.log("Let's start the game! \n");
 
   let startTime = Date.now();
 
-  while (iteration < difficultyLevel.chances) {
-    let numberTyped = await askNumber("Enter your guess: ");
+  while (iteration < difficulty.chances) {
+    let numberTyped = parseInt(await askNumber("Enter your guess: "));
     let isNumberHigherOrLower = numberTyped < numberGenerated ? true : false;
 
     if (numberTyped == numberGenerated) {
@@ -148,7 +135,7 @@ Please select the difficulty level:
       let timeFormatted = `${hours}:${minutes}:${seconds}`;
 
       let userScoreIndex = userScores.findIndex(
-        (userScore) => userScore.level == difficultyLevel.level,
+        (userScore) => userScore.level == difficulty.level,
       );
       let userScore = userScores[userScoreIndex];
 
@@ -226,9 +213,9 @@ const main = async () => {
   while (continueGame) {
     await game();
 
-    continueGame = await askRetry("Do you want to retry? (y/n): ");
+    continueGame = await getInput("Do you want to retry? (y/n): ");
 
-    if (continueGame) console.clear();
+    if (continueGame == "y" || continueGame == "yes") console.clear();
   }
   process.exit();
 };
