@@ -44,15 +44,12 @@ const retrieveTime = (time) => {
   };
 };
 
-const validateTime = (lastTimeElapsed, timeElapsed) => {
-  let newHour = 0,
-    newMinute = 0,
-    newSecond = 0;
-  beatTime = false;
+const compareAndReturnTime = (lastTimeElapsed, timeElapsed, attempts) => {
+  let beatTime = false;
 
   if (
     lastTimeElapsed.hours > timeElapsed.hours ||
-    lastTimeElapsed.hours === 0
+    (lastTimeElapsed.hours === 0 && attempts === 0)
   ) {
     newHour = timeElapsed.hours;
     beatTime = true;
@@ -60,7 +57,7 @@ const validateTime = (lastTimeElapsed, timeElapsed) => {
 
   if (
     lastTimeElapsed.minutes > timeElapsed.minutes ||
-    lastTimeElapsed.minutes === 0
+    (lastTimeElapsed.hours === 0 && attempts === 0)
   ) {
     newMinute = timeElapsed.minutes;
     beatTime = true;
@@ -68,17 +65,81 @@ const validateTime = (lastTimeElapsed, timeElapsed) => {
 
   if (
     lastTimeElapsed.seconds > timeElapsed.seconds ||
-    lastTimeElapsed.seconds === 0
+    (lastTimeElapsed.hours === 0 && attempts === 0)
   ) {
-    newSecond = timeElapsed.seconds;
     beatTime = true;
   }
 
   return {
-    newHour,
-    newMinute,
-    newSecond,
+    newHour: timeElapsed.hours,
+    newMinute: timeElapsed.minutes,
+    newSecond: timeElapsed.seconds,
     beatTime,
+  };
+};
+
+const getTimeElapsedFormatted = (startTime) => {
+  let endTime = Date.now();
+  let elapsedSeconds = (endTime - startTime) / 1000;
+
+  let hours = Math.floor(elapsedSeconds / 3600);
+  let minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  let seconds = Math.floor(elapsedSeconds % 60);
+
+  return `${hours}:${minutes}:${seconds}`;
+};
+
+const verifyIfUserBrokeRecord = (
+  attemptsIsLessThanUser,
+  userGameInfo,
+  userScore,
+) => {
+  userGameInfo.attempts++;
+
+  if (userScore.attempts === 0 || attemptsIsLessThanUser)
+    userScore.attempts = userGameInfo.attempts;
+
+  if (userGameInfo.beatTime || userScore.attempts === 0)
+    userScore.time = userGameInfo.timeFormatted;
+
+  return userScore;
+};
+
+const validateAttemptsAndUserTime = (userGameInfo, userScore) => {
+  let attemptsIsLessThanUser = false;
+
+  if (userGameInfo.attempts + 1 < userScore.attempts)
+    attemptsIsLessThanUser = true;
+
+  if (attemptsIsLessThanUser) {
+    console.log(
+      `\nCongratulations! You broke the last record in ${userGameInfo.attempts + 1} attempts in level ${userScore.level}.\n`,
+    );
+  } else {
+    console.log(
+      `\nCongratulations! You guessed the correct number in ${userGameInfo.attempts + 1} attempts in level ${userScore.level}.\n`,
+    );
+  }
+
+  if (userGameInfo.beatTime && userScore.attempts != 0) {
+    console.log(
+      `You also beat your previous time by ${userGameInfo.newHour}h ${userGameInfo.newMinute}m ${userGameInfo.newSecond}s.\n`,
+    );
+  } else {
+    console.log(
+      `The time it took you was ${userGameInfo.newHour}h ${userGameInfo.newMinute}m ${userGameInfo.newSecond}s.\n`,
+    );
+  }
+
+  const data = verifyIfUserBrokeRecord(
+    attemptsIsLessThanUser,
+    userGameInfo,
+    userScore,
+  );
+
+  return {
+    ...userGameInfo,
+    userScore: data,
   };
 };
 
@@ -97,7 +158,16 @@ Please select the difficulty level:
     attempts = 0,
     won = false,
     continueGame = false,
-    message = "";
+    message = "",
+    userGameInfo = {
+      attempts: 0,
+      beatTime: false,
+      timeFormatted: `0:0:0`,
+      newHour: 0,
+      newMinute: 0,
+      newSecond: 0,
+      userScore: {},
+    };
 
   let numberGenerated = Math.floor(Math.random() * 100) + 1;
 
@@ -118,75 +188,45 @@ Please select the difficulty level:
   );
   console.log("Let's start the game! \n");
 
+  console.log("Generated number: " + numberGenerated);
+
   let startTime = Date.now();
 
   while (iteration < difficulty.chances) {
-    let numberTyped = parseInt(await askNumber("Enter your guess: "));
+    let numberTyped = parseInt(await getInput("Enter your guess: "));
+
     let isNumberHigherOrLower = numberTyped < numberGenerated ? true : false;
 
     if (numberTyped == numberGenerated) {
-      let endTime = Date.now();
-      let elapsedSeconds = (endTime - startTime) / 1000;
-
-      let hours = Math.floor(elapsedSeconds / 3600);
-      let minutes = Math.floor((elapsedSeconds % 3600) / 60);
-      let seconds = Math.floor(elapsedSeconds % 60);
-
-      let timeFormatted = `${hours}:${minutes}:${seconds}`;
+      let timeFormatted = getTimeElapsedFormatted(startTime);
 
       let userScoreIndex = userScores.findIndex(
         (userScore) => userScore.level == difficulty.level,
       );
       let userScore = userScores[userScoreIndex];
 
-      let userLastTimeElapsed = userScore.time;
-      let userLastTimeElapsedFormatted = retrieveTime(userLastTimeElapsed);
+      let userLastTimeElapsedFormatted = retrieveTime(userScore.time);
 
       let nowTimeElapsedFormatted = retrieveTime(timeFormatted);
 
-      let { newHour, newMinute, newSecond, beatTime } = validateTime(
+      let { newHour, newMinute, newSecond, beatTime } = compareAndReturnTime(
         userLastTimeElapsedFormatted,
         nowTimeElapsedFormatted,
+        userScore.attempts,
       );
 
-      if (attempts + 1 < userScore.attempts) {
-        attempts++;
-        userScore.attempts = attempts;
-        userScore.time = timeFormatted;
+      userGameInfo = {
+        attempts,
+        beatTime,
+        timeFormatted,
+        newHour,
+        newMinute,
+        newSecond,
+        userScore,
+      };
 
-        console.log(
-          `\nCongratulations! You broke the last record in ${attempts} attempts in level ${userScore.level}.`,
-        );
-
-        console.log(
-          `\nYou also beat your previous time by ${newHour}h ${newMinute}m ${newSecond}s.`,
-        );
-
-        return true;
-      } else {
-        attempts++;
-
-        console.log(
-          `\nCongratulations! You guessed the correct number in ${attempts} attempts in level ${userScore.level}.`,
-        );
-
-        if (beatTime) {
-          if (userScore.attempts == 0) {
-            console.log(
-              `\nThe time it took you was ${newHour}h ${newMinute}m ${newSecond}s.\n`,
-            );
-          } else {
-            console.log(
-              `\nYou also beat your previous time by ${newHour}h ${newMinute}m ${newSecond}s.`,
-            );
-          }
-        }
-
-        if (userScore.attempts === 0) {
-          userScore.attempts = attempts;
-          userScore.time = timeFormatted;
-        }
-      }
+      ({ attempts, beatTime, newHour, newMinute, newSecond, userScore } =
+        validateAttemptsAndUserTime(userGameInfo, userScore));
 
       return true;
     } else {
@@ -201,10 +241,6 @@ Please select the difficulty level:
 
   console.log(`You ran out of chances. The number was ${numberGenerated}. \n`);
   return false;
-};
-
-const cleanInputs = (iteration, attempts, won) => {
-  ((iteration = 0), (attempts = 0), (won = false));
 };
 
 const main = async () => {
