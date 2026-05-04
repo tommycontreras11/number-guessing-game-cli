@@ -1,262 +1,185 @@
 const difficultyLevels = [
-  {
-    level: "Easy",
-    chances: 10,
-  },
-  {
-    level: "Medium",
-    chances: 5,
-  },
-  {
-    level: "Hard",
-    chances: 3,
-  },
+  { level: "Easy", chances: 10 },
+  { level: "Medium", chances: 5 },
+  { level: "Hard", chances: 3 },
 ];
 
-let userScores = [];
-difficultyLevels.forEach((difficultyLevel) => {
-  userScores.push({
-    level: difficultyLevel.level,
-    attempts: 0,
-    time: "0:0:0",
-  });
-});
+const userScores = difficultyLevels.map(({ level }) => ({
+  level,
+  attempts: 0,
+  time: "0:0:0",
+}));
 
-const getInput = async (question) => {
-  return new Promise((resolve) => {
+const getInput = (question) =>
+  new Promise((resolve) => {
     process.stdout.write(question);
-
     process.stdin.once("data", (data) => {
-      const input = data.toString().trim();
-
-      resolve(input);
+      resolve(data.toString().trim());
     });
   });
+
+const parseTime = (time) => {
+  const [hours, minutes, seconds] = time.split(":").map(Number);
+  return { hours, minutes, seconds };
 };
 
-const retrieveTime = (time) => {
-  const [hours, minutes, seconds] = time.split(":");
+const formatElapsedTime = (startTime) => {
+  const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-  return {
-    hours: parseInt(hours),
-    minutes: parseInt(minutes),
-    seconds: parseInt(seconds),
-  };
-};
-
-const compareAndReturnTime = (lastTimeElapsed, timeElapsed, attempts) => {
-  let beatTime = false;
-
-  if (
-    lastTimeElapsed.hours > timeElapsed.hours ||
-    (lastTimeElapsed.hours === 0 && attempts === 0)
-  ) {
-    newHour = timeElapsed.hours;
-    beatTime = true;
-  }
-
-  if (
-    lastTimeElapsed.minutes > timeElapsed.minutes ||
-    (lastTimeElapsed.hours === 0 && attempts === 0)
-  ) {
-    newMinute = timeElapsed.minutes;
-    beatTime = true;
-  }
-
-  if (
-    lastTimeElapsed.seconds > timeElapsed.seconds ||
-    (lastTimeElapsed.hours === 0 && attempts === 0)
-  ) {
-    beatTime = true;
-  }
-
-  return {
-    newHour: timeElapsed.hours,
-    newMinute: timeElapsed.minutes,
-    newSecond: timeElapsed.seconds,
-    beatTime,
-  };
-};
-
-const getTimeElapsedFormatted = (startTime) => {
-  let endTime = Date.now();
-  let elapsedSeconds = (endTime - startTime) / 1000;
-
-  let hours = Math.floor(elapsedSeconds / 3600);
-  let minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  let seconds = Math.floor(elapsedSeconds % 60);
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
 
   return `${hours}:${minutes}:${seconds}`;
 };
 
-const verifyIfUserBrokeRecord = (
-  attemptsIsLessThanUser,
-  userGameInfo,
-  userScore,
-) => {
-  userGameInfo.attempts++;
+const isBetterTime = (previousTime, currentTime, previousAttempts) => {
+  if (previousAttempts === 0) return true;
 
-  if (userScore.attempts === 0 || attemptsIsLessThanUser)
-    userScore.attempts = userGameInfo.attempts;
+  const previous =
+    previousTime.hours * 3600 +
+    previousTime.minutes * 60 +
+    previousTime.seconds;
 
-  if (userGameInfo.beatTime || userScore.attempts === 0)
-    userScore.time = userGameInfo.timeFormatted;
+  const current =
+    currentTime.hours * 3600 +
+    currentTime.minutes * 60 +
+    currentTime.seconds;
 
-  return userScore;
+  return current < previous;
 };
 
-const validateAttemptsAndUserTime = (userGameInfo, userScore) => {
-  let attemptsIsLessThanUser = false;
+const getDifficulty = async () => {
+  while (true) {
+    const input = Number(await getInput("Enter your choice: "));
 
-  if (userGameInfo.attempts + 1 < userScore.attempts)
-    attemptsIsLessThanUser = true;
+    if (input >= 1 && input <= difficultyLevels.length) {
+      return difficultyLevels[input - 1];
+    }
 
-  if (attemptsIsLessThanUser) {
-    console.log(
-      `\nCongratulations! You broke the last record in ${userGameInfo.attempts + 1} attempts in level ${userScore.level}.\n`,
-    );
-  } else {
-    console.log(
-      `\nCongratulations! You guessed the correct number in ${userGameInfo.attempts + 1} attempts in level ${userScore.level}.\n`,
-    );
+    console.log("\nInvalid choice. Please select a correct one.\n");
   }
+};
 
-  if (userGameInfo.beatTime && userScore.attempts != 0) {
-    console.log(
-      `You also beat your previous time by ${userGameInfo.newHour}h ${userGameInfo.newMinute}m ${userGameInfo.newSecond}s.\n`,
-    );
-  } else {
-    console.log(
-      `The time it took you was ${userGameInfo.newHour}h ${userGameInfo.newMinute}m ${userGameInfo.newSecond}s.\n`,
-    );
+const getValidGuess = async () => {
+  while (true) {
+    const guess = Number(await getInput("Enter your guess: "));
+
+    if (!Number.isNaN(guess)) {
+      return guess;
+    }
+
+    console.log("\nThe number is required.\n");
   }
+};
 
-  const data = verifyIfUserBrokeRecord(
-    attemptsIsLessThanUser,
-    userGameInfo,
-    userScore,
+const updateScore = ({ userScore, attempts, timeFormatted }) => {
+  const currentAttempts = attempts + 1;
+  const previousTime = parseTime(userScore.time);
+  const currentTime = parseTime(timeFormatted);
+
+  const fewerAttempts =
+    userScore.attempts === 0 || currentAttempts < userScore.attempts;
+
+  const fasterTime = isBetterTime(
+    previousTime,
+    currentTime,
+    userScore.attempts,
   );
 
+  if (fewerAttempts) {
+    userScore.attempts = currentAttempts;
+  }
+
+  if (fasterTime) {
+    userScore.time = timeFormatted;
+  }
+
   return {
-    ...userGameInfo,
-    userScore: data,
+    userScore,
+    currentAttempts,
+    currentTime,
+    fewerAttempts,
+    fasterTime,
   };
+};
+
+const printWinMessage = ({
+  currentAttempts,
+  userScore,
+  currentTime,
+  fewerAttempts,
+  fasterTime,
+}) => {
+  if (fewerAttempts && userScore.attempts !== 0) {
+    console.log(
+      `\nCongratulations! You broke the last record in ${currentAttempts} attempts in level ${userScore.level}.\n`,
+    );
+  } else {
+    console.log(
+      `\nCongratulations! You guessed the correct number in ${currentAttempts} attempts in level ${userScore.level}.\n`,
+    );
+  }
+
+  if (fasterTime && userScore.attempts !== 0) {
+    console.log(
+      `You also beat your previous time with ${currentTime.hours}h ${currentTime.minutes}m ${currentTime.seconds}s.\n`,
+    );
+  } else {
+    console.log(
+      `The time it took you was ${currentTime.hours}h ${currentTime.minutes}m ${currentTime.seconds}s.\n`,
+    );
+  }
 };
 
 const game = async () => {
   console.log(`
 Welcome to the Number Guessing Game!
 I'm thinking of a number between 1 and 100.
-You have 5 chances to guess the correct number.
 
 Please select the difficulty level:
 1. Easy (10 chances)
 2. Medium (5 chances)
-3. Hard (3 chances) \n`);
+3. Hard (3 chances)
+`);
 
-  let iteration = 0,
-    attempts = 0,
-    won = false,
-    continueGame = false,
-    message = "",
-    userGameInfo = {
-      attempts: 0,
-      beatTime: false,
-      timeFormatted: `0:0:0`,
-      newHour: 0,
-      newMinute: 0,
-      newSecond: 0,
-      userScore: {},
-    };
-
-  let numberGenerated = Math.floor(Math.random() * 100) + 1;
-
-  let difficulty;
-
-  while (!difficulty) {
-    let input = parseInt(await getInput("Enter your choice: "));
-
-    if (input >= 1 && input <= difficultyLevels.length) {
-      difficulty = difficultyLevels[input - 1];
-    } else {
-      console.log("\nInvalid choice. Please, select a correct one\n");
-    }
-  }
+  const difficulty = await getDifficulty();
 
   console.log(
     `\nGreat! You have selected the ${difficulty.level} difficulty level.`,
   );
-  console.log("Let's start the game! \n");
+  console.log("Let's start the game!\n");
 
-  console.log("Generated number: " + numberGenerated);
+  const target = Math.floor(Math.random() * 100) + 1;
+  const startTime = Date.now();
 
-  let startTime = Date.now();
-  let isValidNumberTyped = true;
-  let numberTyped;
+  for (let attempts = 0; attempts < difficulty.chances; attempts++) {
+    const guess = await getValidGuess();
 
-  while (iteration < difficulty.chances) {
-    if (isNaN(numberTyped)) {
-      while (isNaN(numberTyped)) {
-        numberTyped = parseInt(await getInput("Enter your guess: "));
-
-        if (isNaN(numberTyped)) {
-          console.log(`\nThe number is required\n`);
-        }
-      }
-    } else {
-      numberTyped = parseInt(await getInput("Enter your guess: "));
-    }
-
-    if (isValidNumberTyped) {
-      startTime = new Date();
-      isValidNumberTyped = false;
-    }
-
-    let isNumberHigherOrLower = numberTyped < numberGenerated ? true : false;
-
-    if (numberTyped == numberGenerated) {
-      let timeFormatted = getTimeElapsedFormatted(startTime);
-
-      let userScoreIndex = userScores.findIndex(
-        (userScore) => userScore.level == difficulty.level,
-      );
-      let userScore = userScores[userScoreIndex];
-
-      let userLastTimeElapsedFormatted = retrieveTime(userScore.time);
-
-      let nowTimeElapsedFormatted = retrieveTime(timeFormatted);
-
-      let { newHour, newMinute, newSecond, beatTime } = compareAndReturnTime(
-        userLastTimeElapsedFormatted,
-        nowTimeElapsedFormatted,
-        userScore.attempts,
+    if (guess === target) {
+      const userScore = userScores.find(
+        (score) => score.level === difficulty.level,
       );
 
-      userGameInfo = {
-        attempts,
-        beatTime,
-        timeFormatted,
-        newHour,
-        newMinute,
-        newSecond,
+      const timeFormatted = formatElapsedTime(startTime);
+
+      const result = updateScore({
         userScore,
-      };
+        attempts,
+        timeFormatted,
+      });
 
-      ({ attempts, beatTime, newHour, newMinute, newSecond, userScore } =
-        validateAttemptsAndUserTime(userGameInfo, userScore));
+      printWinMessage(result);
 
       return true;
-    } else {
-      console.log(
-        `Incorrect! The number is ${isNumberHigherOrLower ? "greater" : "less"} than ${numberTyped}.\n`,
-      );
-      iteration++;
     }
 
-    attempts++;
+    console.log(
+      `Incorrect! The number is ${guess < target ? "greater" : "less"} than ${guess}.\n`,
+    );
   }
 
-  console.log(`You ran out of chances. The number was ${numberGenerated}. \n`);
+  console.log(`You ran out of chances. The number was ${target}.\n`);
   return false;
 };
 
@@ -266,10 +189,17 @@ const main = async () => {
   while (continueGame) {
     await game();
 
-    continueGame = await getInput("Do you want to retry? (y/n): ");
+    const answer = (await getInput("Do you want to retry? (y/n): "))
+      .toLowerCase()
+      .trim();
 
-    if (continueGame == "y" || continueGame == "yes") console.clear();
+    continueGame = answer === "y" || answer === "yes";
+
+    if (continueGame) {
+      console.clear();
+    }
   }
+
   process.exit();
 };
 
