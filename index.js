@@ -191,9 +191,26 @@ Please select the difficulty level:
   console.log("Generated number: " + numberGenerated);
 
   let startTime = Date.now();
+  let isValidNumberTyped = true;
+  let numberTyped;
 
   while (iteration < difficulty.chances) {
-    let numberTyped = parseInt(await getInput("Enter your guess: "));
+    if (isNaN(numberTyped)) {
+      while (isNaN(numberTyped)) {
+        numberTyped = parseInt(await getInput("Enter your guess: "));
+
+        if (isNaN(numberTyped)) {
+          console.log(`\nThe number is required\n`);
+        }
+      }
+    } else {
+      numberTyped = parseInt(await getInput("Enter your guess: "));
+    }
+
+    if (isValidNumberTyped) {
+      startTime = new Date();
+      isValidNumberTyped = false;
+    }
 
     let isNumberHigherOrLower = numberTyped < numberGenerated ? true : false;
 
